@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>משאבים | ימית ליבנה</title>
+<link rel="stylesheet" href="style.css">
+
+<!-- תוספת עיצוב לכרטיסים שהם קישורים. לא נוגע ב-style.css -->
+<style>
+a.service-card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+a.service-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+.resource-tag {
+  display: inline-block;
+  font-size: 0.85em;
+  font-weight: bold;
+  opacity: 0.7;
+  margin-bottom: 4px;
+}
+</style>
+</head>
+
+<body>
+
+<header class="banner">
+<img src="images/logo-banner.png" class="logo">
+</header>
+
+<nav class="menu">
+<a href="index.html">ראשי</a>
+<a href="index.html#services">שירותים</a>
+<a href="workshops.html">הרצאות</a>
+<a href="materials.html">משאבים</a>
+</nav>
+
+<section class="title">
+<h1>משאבים</h1>
+</section>
+
+<section id="materials">
+
+<!--
+  איך מוסיפים משאב:
+  מעתיקים בלוק <a class="service-card">...</a> שלם,
+  ומחליפים את הכתובת, התגית, הכותרת והתיאור.
+-->
+
+<div class="service-grid">
+
+<a class="service-card" href="https://yam-data.com/PBI/" target="_blank" rel="noopener">
+<span class="resource-tag">Power BI</span>
+<h3>Power BI – קורס מעשי</h3>
+<p>
+מצגות ותרגולים בשמונה יחידות: Power Query, מודל נתונים,
+DAX בסיסי ובניית דוחות
+</p>
+</a>
+
+<a class="service-card" href="https://yam-data.com/SQLmaterials/" target="_blank" rel="noopener">
+<span class="resource-tag">SQL</span>
+<h3>SQL עם FoodRush</h3>
+<p>
+לימוד SQL על מסד נתונים של חברת משלוחי אוכל,
+מהשאילתות הבסיסיות ועד JOIN ותתי-שאילתות
+</p>
+</a>
+
+<a class="service-card" href="https://yam-data.com/stats/" target="_blank" rel="noopener">
+<span class="resource-tag">סטטיסטיקה</span>
+<h3>סימולציות בסטטיסטיקה</h3>
+<p>
+סימולציות אינטראקטיביות: מדדי מרכז ופיזור,
+צורות התפלגות, מתאם וקשר בין משתנים
+</p>
+</a>
+
+</div>
+
+</section>
+
+<footer class="contact">
+
+<h3>צרו קשר</h3>
+
+<p>
+מייל:
+<a href="mailto:yamit@yam-data.com">yamit@yam-data.com</a>
+</p>
+
+<p>
+LinkedIn:
+<a href="https://www.linkedin.com/in/yamitlivneh" target="_blank">www.linkedin.com/in/yamitlivneh</a>
+</p>
+
+</footer>
+
+</body>
+</html>
