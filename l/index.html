@@ -9,41 +9,64 @@
 <script src="api.js"></script>
 <script src="qrcode.js"></script>
 <style>
-  .stage { height: 100vh; display: grid; grid-template-rows: auto 1fr auto; padding: 2.2vh 3vw; gap: 2vh; }
-  .topbar { display: flex; align-items: center; gap: 1.2vw; font-size: 1.7vh; color: var(--muted); }
-  .topbar .deck { font-weight: 700; color: var(--ink); font-size: 2.1vh; }
-  .main { display: grid; grid-template-columns: 1fr 28vh; gap: 3vw; min-height: 0; }
-  .qcol { display: flex; flex-direction: column; gap: 2vh; min-height: 0; }
-  .qtitle { font-size: 4.6vh; line-height: 1.25; margin: 0; font-weight: 700; }
-  .qcontext { font-size: 2.4vh; color: var(--muted); margin: 0; }
-  .results { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-start; padding-top: 3vh; }
-  .bars { display: flex; flex-direction: column; gap: 1.8vh; }
-  .bar-row { display: grid; grid-template-columns: minmax(10vw, auto) 1fr 9vw; align-items: center; gap: 1.2vw; font-size: 2.7vh; }
-  .bar-label { font-weight: 600; }
-  .bar-track { background: var(--line); border-radius: 8px; height: 4.8vh; overflow: hidden; }
+  /* גדלים ביחידות של גובה המסך, כדי שהכל ייראה מרחוק בכל מקרן */
+  .stage { height: 100vh; display: grid; grid-template-rows: auto 1fr auto; padding: 3vh 3.5vw 0; gap: 2.5vh; }
+  .topbar { display: flex; align-items: center; gap: 1.4vw; font-size: 2.4vh; color: var(--muted); }
+  .topbar .deck { font-weight: 700; color: var(--ink); font-size: 2.8vh; }
+  .main { display: grid; grid-template-columns: 1fr 30vh; gap: 3.5vw; min-height: 0; }
+  .qcol { display: flex; flex-direction: column; gap: 2.2vh; min-height: 0; }
+  .qtitle { font-size: 6.4vh; line-height: 1.2; margin: 0; font-weight: 800; }
+  .qcontext { font-size: 3.2vh; color: var(--muted); margin: 0; }
+  .results { flex: 1; min-height: 0; display: flex; flex-direction: column; padding-top: 2vh; }
+
+  /* עמודות: רוחב קבוע לתווית, כך שכל הפסים מתחילים ונגמרים באותו מקום */
+  .bars { display: flex; flex-direction: column; gap: 2vh; }
+  .bar-row { display: grid; grid-template-columns: 24vw 1fr 12vw; align-items: center; gap: 1.6vw; font-size: 3.8vh; }
+  .bar-label { font-weight: 700; line-height: 1.15; }
+  .bar-track { background: var(--line); border-radius: 1vh; height: 6.4vh; overflow: hidden; }
   .bar-fill { background: var(--accent); height: 100%; width: 0; transition: width .5s ease; }
-  .bar-num { color: var(--muted); font-variant-numeric: tabular-nums; }
-  .cards { display: flex; flex-wrap: wrap; gap: 1.2vh 1vw; align-content: flex-start; overflow: auto; }
-  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.2vh 1.2vw; font-size: 2.3vh; max-width: 30vw; }
-  .card .n { display: inline-block; background: var(--accent); color: #fff; font-weight: 700; border-radius: 999px; padding: 0 .7vw; margin-inline-start: .7vw; font-size: 1.8vh; }
-  .veil { text-align: center; color: var(--muted); margin-top: 4vh; }
-  .veil .big { font-size: 10vh; font-weight: 700; color: var(--ink); line-height: 1; }
-  .veil .small { font-size: 2.5vh; margin-top: 1vh; }
-  .qrpanel { background: var(--surface); border-radius: var(--radius); padding: 2vh; display: flex; flex-direction: column; align-items: center; gap: 1.4vh; align-self: start; text-align: center; }
+  .bar-num { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .bar-num small { color: var(--muted); font-weight: 400; font-size: .75em; }
+
+  /* היסטוגרמה וסולם: עמודות אנכיות */
+  .cols { flex: 1; min-height: 0; display: flex; align-items: flex-end; gap: 1vw; direction: ltr; padding-bottom: 0; }
+  .col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
+  .col .cnt { font-size: 3vh; font-weight: 700; margin-bottom: .6vh; }
+  .col .bar { width: 100%; background: var(--accent); border-radius: 1vh 1vh 0 0; transition: height .5s ease; min-height: 2px; }
+  .col .lbl { font-size: 2.6vh; color: var(--ink); margin-top: 1vh; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .axis { border-top: 3px solid var(--ink); }
+  .ends { display: flex; justify-content: space-between; font-size: 2.6vh; color: var(--muted); margin-top: .8vh; direction: ltr; }
+  .stats { display: flex; gap: 3vw; font-size: 3.6vh; margin-bottom: 2vh; }
+  .stats b { font-size: 1.25em; }
+
+  .cards { display: flex; flex-wrap: wrap; gap: 1.6vh 1.2vw; align-content: flex-start; overflow: hidden; }
+  .card { background: var(--surface); border: 2px solid var(--line); border-radius: var(--radius); padding: 1.4vh 1.4vw; font-size: 3.4vh; max-width: 36vw; }
+  .card .n { display: inline-block; background: var(--accent); color: var(--on-accent); font-weight: 700; border-radius: 999px; padding: 0 .8vw; margin-inline-start: .8vw; font-size: 2.6vh; }
+
+  .cloud { flex: 1; display: flex; flex-wrap: wrap; justify-content: center; align-content: center; align-items: center; gap: 1vh 2vw; overflow: hidden; }
+  .cloud span { font-weight: 700; line-height: 1.1; }
+
+  .veil { text-align: center; color: var(--muted); margin-top: 3vh; }
+  .veil .big { font-size: 14vh; font-weight: 800; color: var(--ink); line-height: 1; }
+  .veil .small { font-size: 3.2vh; margin-top: 1.4vh; }
+
+  .qrpanel { background: #fff; border: 2px solid var(--line); border-radius: var(--radius); padding: 2vh; display: flex; flex-direction: column; align-items: center; gap: 1.4vh; align-self: start; text-align: center; }
   .qrpanel .qr { width: 100%; }
   .qrpanel .qr svg { width: 100%; height: auto; display: block; }
-  .qrpanel .hint { font-size: 2vh; font-weight: 600; }
-  .qrpanel .qurl { font-size: 1.4vh; color: var(--muted); direction: ltr; word-break: break-all; }
-  .bottom { display: flex; align-items: center; gap: .8vw; flex-wrap: wrap; min-height: 5vh; }
-  .bottom button { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: .9vh 1.2vw; font-size: 1.7vh; color: var(--ink); }
-  .bottom button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
-  .bottom .keys { color: var(--muted); font-size: 1.4vh; margin-inline-start: auto; }
-  #lockBtn { opacity: .35; }
+  .qrpanel .hint { font-size: 2.6vh; font-weight: 700; color: #1d2430; }
+  .qrpanel .qurl { font-size: 1.6vh; color: #6b7280; direction: ltr; word-break: break-all; }
+
+  .bottom { display: flex; align-items: center; gap: .8vw; flex-wrap: wrap; min-height: 6vh; padding-bottom: 1.2vh; }
+  .bottom button { background: var(--bg); border: 2px solid var(--line); border-radius: 10px; padding: .9vh 1.2vw; font-size: 1.9vh; color: var(--ink); }
+  .bottom button.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 700; }
+  .bottom .keys { color: var(--muted); font-size: 1.6vh; margin-inline-start: auto; }
+  #lockBtn { opacity: .3; }
   #lockBtn:hover { opacity: 1; }
   .pinbox { display: flex; gap: .6vw; align-items: center; }
-  .pinbox input { width: 9em; padding: .7vh .8vw; font-size: 1.8vh; border: 1px solid var(--line); border-radius: 8px; direction: ltr; text-align: center; }
-  .msg { position: fixed; bottom: 9vh; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 1.2vh 2vw; border-radius: 10px; font-size: 1.9vh; }
-  .loading { display: grid; place-items: center; height: 100vh; font-size: 3vh; color: var(--muted); text-align: center; padding: 0 10vw; }
+  .pinbox input { width: 9em; padding: .7vh .8vw; font-size: 1.9vh; border: 2px solid var(--line); border-radius: 8px; direction: ltr; text-align: center; }
+  .stripe { position: fixed; left: 0; right: 0; bottom: 0; height: 1vh; background: var(--accent); }
+  .msg { position: fixed; bottom: 10vh; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 1.2vh 2vw; border-radius: 10px; font-size: 2.2vh; }
+  .loading { display: grid; place-items: center; height: 100vh; font-size: 3.4vh; color: var(--muted); text-align: center; padding: 0 10vw; }
 </style>
 </head>
 <body>
@@ -86,6 +109,7 @@
     <span class="keys hidden" id="keys">חצים: מעבר | O: פתיחה/סגירה | R: תוצאות | F11: מסך מלא</span>
   </div>
 </div>
+<div class="stripe"></div>
 <div class="msg hidden" id="msg"></div>
 
 <script>
@@ -100,6 +124,13 @@
     m.classList.remove('hidden');
     clearTimeout(toast._t);
     toast._t = setTimeout(function () { m.classList.add('hidden'); }, ms || 2500);
+  }
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
   }
 
   function curIndex() {
@@ -122,49 +153,131 @@
 
   function renderResults(q) {
     var box = $('results');
-    var r = (results && qid === q.id) ? results : { n: 0, counts: q.options.map(function () { return 0; }), texts: [] };
+    var r = (results && qid === q.id) ? results : { n: 0 };
     $('count').textContent = r.n + ' תשובות';
     box.innerHTML = '';
     if (!state.showResults) {
-      var v = document.createElement('div');
-      v.className = 'veil';
-      v.innerHTML = '<div class="big"></div><div class="small">תשובות התקבלו. התוצאות מוסתרות.</div>';
-      v.querySelector('.big').textContent = r.n;
+      var v = el('div', 'veil');
+      v.appendChild(el('div', 'big', r.n));
+      v.appendChild(el('div', 'small', 'תשובות התקבלו. התוצאות מוסתרות.'));
       box.appendChild(v);
       return;
     }
-    if (q.type === 'choice') {
-      var wrap = document.createElement('div');
-      wrap.className = 'bars';
-      q.options.forEach(function (o, i) {
-        var c = (r.counts || [])[i] || 0;
-        var pct = r.n ? Math.round(c / r.n * 100) : 0;
-        var row = document.createElement('div');
-        row.className = 'bar-row';
-        row.innerHTML = '<span class="bar-label"></span><div class="bar-track"><div class="bar-fill"></div></div><span class="bar-num"></span>';
-        row.querySelector('.bar-label').textContent = o;
-        row.querySelector('.bar-num').textContent = c + ' (' + pct + '%)';
-        row.querySelector('.bar-fill').style.width = pct + '%';
-        wrap.appendChild(row);
-      });
-      box.appendChild(wrap);
-    } else {
-      var cards = document.createElement('div');
-      cards.className = 'cards';
-      (r.texts || []).forEach(function (a) {
-        var card = document.createElement('div');
-        card.className = 'card';
-        card.textContent = a.text;
-        if (a.n > 1) {
-          var s = document.createElement('span');
-          s.className = 'n';
-          s.textContent = a.n;
-          card.appendChild(s);
-        }
-        cards.appendChild(card);
-      });
-      box.appendChild(cards);
+    if (q.type === 'choice') renderChoice(box, q, r);
+    else if (q.type === 'scale') renderScale(box, q, r);
+    else if (q.type === 'number') renderNumber(box, q, r);
+    else if (q.type === 'cloud') renderCloud(box, r);
+    else renderCards(box, r);
+  }
+
+  function renderChoice(box, q, r) {
+    var wrap = el('div', 'bars');
+    q.options.forEach(function (o, i) {
+      var c = (r.counts || [])[i] || 0;
+      var pct = r.n ? Math.round(c / r.n * 100) : 0;
+      var row = el('div', 'bar-row');
+      row.appendChild(el('span', 'bar-label', o));
+      var track = el('div', 'bar-track');
+      var fill = el('div', 'bar-fill');
+      fill.style.width = pct + '%';
+      track.appendChild(fill);
+      row.appendChild(track);
+      var num = el('span', 'bar-num', c + ' ');
+      num.appendChild(el('small', '', '(' + pct + '%)'));
+      row.appendChild(num);
+      wrap.appendChild(row);
+    });
+    box.appendChild(wrap);
+  }
+
+  function columns(box, items) {
+    var max = Math.max.apply(null, items.map(function (it) { return it.count; }).concat([1]));
+    var cols = el('div', 'cols');
+    items.forEach(function (it) {
+      var c = el('div', 'col');
+      c.appendChild(el('div', 'cnt', it.count || ''));
+      var b = el('div', 'bar');
+      b.style.height = (it.count / max * 78) + '%';
+      c.appendChild(b);
+      cols.appendChild(c);
+    });
+    box.appendChild(cols);
+    var axis = el('div', 'axis');
+    var labels = el('div', 'cols');
+    labels.style.flex = '0 0 auto';
+    items.forEach(function (it) {
+      var c = el('div', 'col');
+      c.appendChild(el('div', 'lbl', it.label));
+      labels.appendChild(c);
+    });
+    box.appendChild(axis);
+    box.appendChild(labels);
+  }
+
+  function renderScale(box, q, r) {
+    var stats = el('div', 'stats');
+    var m = el('span', '', 'ממוצע: ');
+    m.appendChild(el('b', '', r.mean === null || r.mean === undefined ? '-' : fmt(r.mean)));
+    stats.appendChild(m);
+    box.appendChild(stats);
+    var items = (r.counts || []).map(function (c, i) { return { count: c, label: String(q.min + i) }; });
+    columns(box, items);
+    if (q.lowLabel || q.highLabel) {
+      var ends = el('div', 'ends');
+      ends.appendChild(el('span', '', q.lowLabel));
+      ends.appendChild(el('span', '', q.highLabel));
+      box.appendChild(ends);
     }
+  }
+
+  function renderNumber(box, q, r) {
+    var stats = el('div', 'stats');
+    [['ממוצע', r.mean], ['חציון', r.median], ['מינימום', r.min], ['מקסימום', r.max]].forEach(function (p) {
+      var s = el('span', '', p[0] + ': ');
+      s.appendChild(el('b', '', r.n ? fmt(p[1]) : '-'));
+      stats.appendChild(s);
+    });
+    box.appendChild(stats);
+    if (!r.n) return;
+    var items = r.bins.map(function (b) {
+      return { count: b.count, label: r.intBins ? fmt(b.from) : fmt(b.from) + '-' + fmt(b.to) };
+    });
+    columns(box, items);
+    if (q.unit) {
+      var u = el('div', 'ends');
+      u.appendChild(el('span', '', ''));
+      u.appendChild(el('span', '', q.unit));
+      box.appendChild(u);
+    }
+  }
+
+  function renderCards(box, r) {
+    var cards = el('div', 'cards');
+    (r.texts || []).forEach(function (a) {
+      var card = el('div', 'card', a.text);
+      if (a.n > 1) card.appendChild(el('span', 'n', a.n));
+      cards.appendChild(card);
+    });
+    box.appendChild(cards);
+  }
+
+  function renderCloud(box, r) {
+    var items = (r.texts || []).slice();
+    var cloud = el('div', 'cloud');
+    if (!items.length) { box.appendChild(cloud); return; }
+    var max = items[0].n, min = items[items.length - 1].n;
+    // הגדולות במרכז: מסדרים לסירוגין מהצדדים
+    var order = [];
+    items.forEach(function (it, i) { if (i % 2) order.push(it); else order.unshift(it); });
+    order.forEach(function (it, i) {
+      var t = max === min ? 1 : (it.n - min) / (max - min);
+      var s = el('span', '', it.text);
+      s.style.fontSize = (3 + t * 7) + 'vh';
+      s.style.color = i % 3 === 0 ? 'var(--ink)' : (i % 3 === 1 ? 'var(--muted)' : 'var(--ink)');
+      if (it === items[0]) s.style.color = 'var(--ink)';
+      cloud.appendChild(s);
+    });
+    box.appendChild(cloud);
   }
 
   function poll() {
@@ -244,7 +357,7 @@
       var qr = qrcode(0, 'M');
       qr.addData(voteUrl);
       qr.make();
-      $('qr').innerHTML = qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
+      $('qr').innerHTML = qr.createSvgTag({ cellSize: 4, margin: 4, scalable: true });
       $('loading').classList.add('hidden');
       $('stage').classList.remove('hidden');
       render();

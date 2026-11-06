@@ -7,6 +7,7 @@
     --muted: #6b7280;
     --line: #e4e0d6;
     --accent-soft: #d7efec;
+    --on-accent: #ffffff;
     --warn: #b45309;
     --radius: 14px;
     --font: "Heebo", Arial, sans-serif;
@@ -18,5 +19,5 @@
   button { cursor: pointer; }
   .hidden { display: none !important; }
   .pill { padding: .3em .9em; border-radius: 999px; font-weight: 600; background: var(--line); color: var(--muted); }
-  .pill.open { background: var(--accent-soft); color: var(--accent); }
+  .pill.open { background: var(--accent-soft); color: var(--ink); }
   .err { color: var(--warn); }

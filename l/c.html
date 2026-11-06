@@ -16,13 +16,20 @@
   .count { font-size: 44px; font-weight: 700; line-height: 1; color: var(--ink); }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
   .grid button, .wide { background: var(--surface); border: 2px solid var(--line); border-radius: var(--radius); padding: 18px 10px; font-size: 18px; color: var(--ink); }
-  .grid button.primary, .wide.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .grid button.primary, .wide.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 700; }
   .wide { width: 100%; margin-top: 12px; }
   input { width: 100%; padding: 14px; font-size: 20px; border: 2px solid var(--line); border-radius: var(--radius); text-align: center; direction: ltr; }
   .qlist { margin-top: 22px; display: flex; flex-direction: column; gap: 8px; }
   .qlist button { text-align: right; background: transparent; border: 1px solid var(--line); border-radius: 10px; padding: 10px; font-size: 15px; color: var(--ink); }
   .qlist button.cur { border-color: var(--accent); background: var(--accent-soft); }
-  .status { margin-top: 14px; min-height: 1.4em; font-size: 15px; color: var(--accent); }
+  .answers { margin-top: 22px; }
+  .answers h2 { font-size: 16px; margin: 0 0 8px; color: var(--muted); font-weight: 600; }
+  .ans { display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 8px; background: var(--bg); }
+  .ans .t { flex: 1; font-size: 16px; word-break: break-word; }
+  .ans .c { color: var(--muted); font-size: 14px; }
+  .ans button { border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 8px; padding: 6px 12px; font-size: 14px; }
+  .ans.off .t { text-decoration: line-through; color: var(--muted); }
+  .status { margin-top: 14px; min-height: 1.4em; font-size: 15px; color: var(--ink); }
 </style>
 </head>
 <body>
@@ -45,6 +52,7 @@
       <button id="reveal"></button>
     </div>
     <button class="wide" id="reset">איפוס תשובות לשאלה</button>
+    <div class="answers hidden" id="answers"><h2>תשובות (אפשר להסתיר מהמסך)</h2><div id="anslist"></div></div>
     <div class="qlist" id="qlist"></div>
   </section>
 
@@ -94,15 +102,46 @@
       state = r.state;
       setStatus('');
       render();
+      if (action === 'hide' || action === 'unhide') {
+        call('poll', lesson.deck, BOOT.session, pin).then(function (p) {
+          renderAnswers(lesson.questions.find(function (x) { return x.id === p.qid; }), p.results);
+        });
+      }
     }).catch(function (e) { busy = false; setStatus(errText(e), true); });
   }
 
+  var lastAns = '';
+  function renderAnswers(q, r) {
+    var show = q && (q.type === 'text' || q.type === 'cloud');
+    $('answers').classList.toggle('hidden', !show);
+    if (!show) { lastAns = ''; return; }
+    var items = (r && r.texts) || [];
+    var sig = q.id + JSON.stringify(items);
+    if (sig === lastAns) return;
+    lastAns = sig;
+    var list = $('anslist');
+    list.innerHTML = '';
+    if (!items.length) { list.textContent = 'עדיין אין תשובות'; return; }
+    items.forEach(function (a) {
+      var row = document.createElement('div');
+      row.className = 'ans' + (a.hidden ? ' off' : '');
+      var t = document.createElement('span'); t.className = 't'; t.textContent = a.text;
+      var c = document.createElement('span'); c.className = 'c'; c.textContent = a.n > 1 ? '×' + a.n : '';
+      var b = document.createElement('button');
+      b.textContent = a.hidden ? 'החזרה' : 'הסתרה';
+      b.onclick = function () { act(a.hidden ? 'unhide' : 'hide', a.text); lastAns = ''; };
+      row.appendChild(t); row.appendChild(c); row.appendChild(b);
+      list.appendChild(row);
+    });
+  }
+
   function poll() {
-    call('poll', lesson.deck, BOOT.session).then(function (p) {
+    call('poll', lesson.deck, BOOT.session, pin).then(function (p) {
       state = p.state;
       qid = p.qid;
       $('count').textContent = p.results ? p.results.n : 0;
       render();
+      renderAnswers(lesson.questions.find(function (x) { return x.id === p.qid; }), p.results);
       setTimeout(poll, 3000);
     }).catch(function () { setTimeout(poll, 5000); });
   }

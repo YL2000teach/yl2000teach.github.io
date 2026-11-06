@@ -17,9 +17,14 @@
   .opt { background: var(--surface); border: 2px solid var(--line); border-radius: var(--radius); padding: 16px; font-size: 18px; text-align: right; color: var(--ink); }
   .opt.chosen { border-color: var(--accent); background: var(--accent-soft); font-weight: 700; }
   textarea { width: 100%; min-height: 96px; font-size: 17px; padding: 12px; border: 2px solid var(--line); border-radius: var(--radius); resize: vertical; direction: rtl; }
-  .send { margin-top: 12px; width: 100%; background: var(--accent); color: #fff; border: none; border-radius: var(--radius); padding: 14px; font-size: 18px; }
+  .send { margin-top: 12px; width: 100%; background: var(--accent); color: var(--on-accent); font-weight: 700; border: none; border-radius: var(--radius); padding: 14px; font-size: 18px; }
   .send:disabled, .opt:disabled { opacity: .6; }
-  .status { margin-top: 16px; font-size: 15px; color: var(--accent); min-height: 1.4em; }
+  .status { margin-top: 16px; font-size: 15px; color: var(--ink); min-height: 1.4em; }
+  .opts.scale { flex-direction: row; gap: 8px; direction: ltr; }
+  .scale .opt { flex: 1; text-align: center; padding: 16px 0; font-size: 20px; }
+  .ends { display: flex; justify-content: space-between; color: var(--muted); font-size: 14px; margin-top: 8px; direction: ltr; }
+  input.field { width: 100%; font-size: 22px; padding: 12px; border: 2px solid var(--line); border-radius: var(--radius); text-align: center; }
+  .unit { color: var(--muted); font-size: 15px; margin-top: 6px; text-align: center; }
   .waiting { text-align: center; color: var(--muted); padding: 60px 0; font-size: 18px; }
 </style>
 </head>
@@ -76,35 +81,85 @@
       var opts = document.createElement('div');
       opts.className = 'opts';
       q.options.forEach(function (o) {
-        var b = document.createElement('button');
-        b.className = 'opt' + (mine === o ? ' chosen' : '');
-        b.textContent = o;
-        b.onclick = function () {
-          send(q, o, function () {
-            Array.prototype.forEach.call(opts.children, function (x) { x.classList.remove('chosen'); });
-            b.classList.add('chosen');
-          });
-        };
-        opts.appendChild(b);
+        opts.appendChild(optButton(q, o, o, mine, opts));
       });
       box.appendChild(opts);
+    } else if (q.type === 'scale') {
+      var row = document.createElement('div');
+      row.className = 'opts scale';
+      for (var v = q.min; v <= q.max; v++) row.appendChild(optButton(q, String(v), String(v), mine, row));
+      box.appendChild(row);
+      if (q.lowLabel || q.highLabel) {
+        var ends = document.createElement('div');
+        ends.className = 'ends';
+        var a = document.createElement('span'); a.textContent = q.lowLabel || '';
+        var b2 = document.createElement('span'); b2.textContent = q.highLabel || '';
+        ends.appendChild(a); ends.appendChild(b2);
+        box.appendChild(ends);
+      }
+    } else if (q.type === 'number') {
+      var inp = document.createElement('input');
+      inp.className = 'field';
+      inp.type = 'text';
+      inp.inputMode = 'decimal';
+      inp.placeholder = 'מספר';
+      inp.value = mine || '';
+      box.appendChild(inp);
+      if (q.unit) {
+        var u = document.createElement('div'); u.className = 'unit'; u.textContent = q.unit; box.appendChild(u);
+      }
+      box.appendChild(sendButton(q, inp, mine, function (v) {
+        var x = Number(String(v).replace(',', '.'));
+        if (!isFinite(x)) return 'צריך לכתוב מספר';
+        if (q.min !== null && x < q.min) return 'המספר צריך להיות לפחות ' + q.min;
+        if (q.max !== null && x > q.max) return 'המספר צריך להיות לכל היותר ' + q.max;
+        return '';
+      }));
+    } else if (q.type === 'cloud') {
+      var w = document.createElement('input');
+      w.className = 'field';
+      w.type = 'text';
+      w.maxLength = 30;
+      w.placeholder = 'מילה אחת או שתיים';
+      w.value = mine || '';
+      box.appendChild(w);
+      box.appendChild(sendButton(q, w, mine));
     } else {
       var ta = document.createElement('textarea');
       ta.maxLength = 200;
       ta.placeholder = 'התשובה שלך';
       ta.value = mine || '';
-      var b = document.createElement('button');
-      b.className = 'send';
-      b.textContent = mine ? 'עדכון התשובה' : 'שליחה';
-      b.onclick = function () {
-        var v = ta.value.trim();
-        if (!v) return setStatus('התשובה ריקה', true);
-        send(q, v, function () { b.textContent = 'עדכון התשובה'; });
-      };
       box.appendChild(ta);
-      box.appendChild(b);
+      box.appendChild(sendButton(q, ta, mine));
     }
     if (mine) setStatus('התשובה שלך נשמרה. אפשר לשנות עד שההצבעה תיסגר.');
+  }
+
+  function optButton(q, value, label, mine, group) {
+    var b = document.createElement('button');
+    b.className = 'opt' + (mine === value ? ' chosen' : '');
+    b.textContent = label;
+    b.onclick = function () {
+      send(q, value, function () {
+        Array.prototype.forEach.call(group.children, function (x) { x.classList.remove('chosen'); });
+        b.classList.add('chosen');
+      });
+    };
+    return b;
+  }
+
+  function sendButton(q, input, mine, check) {
+    var b = document.createElement('button');
+    b.className = 'send';
+    b.textContent = mine ? 'עדכון התשובה' : 'שליחה';
+    b.onclick = function () {
+      var v = input.value.trim();
+      if (!v) return setStatus('התשובה ריקה', true);
+      var problem = check ? check(v) : '';
+      if (problem) return setStatus(problem, true);
+      send(q, v, function () { b.textContent = 'עדכון התשובה'; });
+    };
+    return b;
   }
 
   function send(q, value, onOk) {

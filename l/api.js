@@ -26,29 +26,48 @@ function call(action) {
   });
 }
 
-function soften(hex) {
+function hexToRgb(hex) {
   var n = parseInt(hex.slice(1), 16);
-  var mix = function (c) { return Math.round(c + (255 - c) * 0.82); };
-  return 'rgb(' + mix((n >> 16) & 255) + ',' + mix((n >> 8) & 255) + ',' + mix(n & 255) + ')';
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+// ערבוב שני צבעים: t=0 הצבע הראשון, t=1 השני
+function mix(a, b, t) {
+  var x = hexToRgb(a), y = hexToRgb(b);
+  return 'rgb(' + x.map(function (v, i) { return Math.round(v + (y[i] - v) * t); }).join(',') + ')';
+}
+function luminance(hex) {
+  var c = hexToRgb(hex).map(function (v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
 }
 
 var fontLoaded = false;
+// כל הצבעים נגזרים משלושת הצבעים שבלשונית "שיעורים"
 function applyTheme(t) {
   if (!t) return;
   var s = document.documentElement.style;
   s.setProperty('--bg', t.bg);
   s.setProperty('--ink', t.ink);
   s.setProperty('--accent', t.accent);
-  s.setProperty('--accent-soft', soften(t.accent));
+  s.setProperty('--accent-soft', mix(t.accent, t.bg, 0.7));
+  s.setProperty('--on-accent', luminance(t.accent) > 0.45 ? t.ink : '#ffffff');
+  s.setProperty('--muted', mix(t.ink, t.bg, 0.4));
+  s.setProperty('--line', mix(t.ink, t.bg, 0.9));
+  s.setProperty('--surface', mix(t.ink, t.bg, 0.97));
   s.setProperty('--font', '"' + t.font + '", "Heebo", Arial, sans-serif');
   // Heebo מאוחסן באתר. גופן אחר נטען מ־Google Fonts.
   if (!fontLoaded && t.font !== 'Heebo') {
     fontLoaded = true;
     var l = document.createElement('link');
     l.rel = 'stylesheet';
-    l.href = 'https://fonts.googleapis.com/css2?family=' + t.font.replace(/ /g, '+') + ':wght@400;600;700&display=swap';
+    l.href = 'https://fonts.googleapis.com/css2?family=' + t.font.replace(/ /g, '+') + ':wght@400;600;700;800&display=swap';
     document.head.appendChild(l);
   }
+}
+
+// עיגול להצגה: עד שתי ספרות אחרי הנקודה
+function fmt(x) {
+  if (x === null || x === undefined || !isFinite(x)) return '';
+  return String(Math.round(x * 100) / 100);
 }
 
 var memStore = {};
