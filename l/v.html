@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>הצבעה</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="app.css">
+<script src="api.js"></script>
+<style>
+  .phone { max-width: 520px; margin: 0 auto; padding: 22px 18px 40px; }
+  header { color: var(--muted); font-size: 14px; margin-bottom: 18px; display: flex; justify-content: space-between; gap: 10px; }
+  h1 { font-size: 22px; line-height: 1.35; margin: 0 0 8px; }
+  .ctx { color: var(--muted); font-size: 15px; margin: 0 0 20px; }
+  .opts { display: flex; flex-direction: column; gap: 12px; }
+  .opt { background: var(--surface); border: 2px solid var(--line); border-radius: var(--radius); padding: 16px; font-size: 18px; text-align: right; color: var(--ink); }
+  .opt.chosen { border-color: var(--accent); background: var(--accent-soft); font-weight: 700; }
+  textarea { width: 100%; min-height: 96px; font-size: 17px; padding: 12px; border: 2px solid var(--line); border-radius: var(--radius); resize: vertical; direction: rtl; }
+  .send { margin-top: 12px; width: 100%; background: var(--accent); color: #fff; border: none; border-radius: var(--radius); padding: 14px; font-size: 18px; }
+  .send:disabled, .opt:disabled { opacity: .6; }
+  .status { margin-top: 16px; font-size: 15px; color: var(--accent); min-height: 1.4em; }
+  .waiting { text-align: center; color: var(--muted); padding: 60px 0; font-size: 18px; }
+</style>
+</head>
+<body>
+<main class="phone">
+  <header><span id="deck"></span><span id="pos"></span></header>
+  <div id="view"><div class="waiting">מתחבר...</div></div>
+  <div class="status" id="status"></div>
+</main>
+
+<script>
+  var $ = function (id) { return document.getElementById(id); };
+  var shownKey = null, view = null, sending = false;
+
+  // מזהה אקראי למכשיר. לא מכיל שום פרט אישי.
+  var voter = store.get('live:voter');
+  if (!voter) {
+    var a = new Uint8Array(12);
+    crypto.getRandomValues(a);
+    voter = Array.prototype.map.call(a, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+    store.set('live:voter', voter);
+  }
+  function mineKey(qid) { return 'live:my:' + view.deck + ':' + BOOT.session + ':' + qid; }
+
+  function setStatus(t, isErr) {
+    $('status').textContent = t;
+    $('status').classList.toggle('err', !!isErr);
+  }
+
+  function render() {
+    var q = view.question;
+    var key = q ? q.id + ':' + view.open : 'none';
+    if (key === shownKey) return;
+    shownKey = key;
+    var box = $('view');
+    box.innerHTML = '';
+    setStatus('');
+    $('pos').textContent = q ? 'שאלה ' + (view.index + 1) : '';
+    if (!q) { box.innerHTML = '<div class="waiting">ממתינים לשאלה הראשונה</div>'; return; }
+    if (!view.open) { box.innerHTML = '<div class="waiting">ההצבעה על השאלה הזו סגורה</div>'; return; }
+
+    var h = document.createElement('h1');
+    h.textContent = q.title;
+    box.appendChild(h);
+    if (q.context) {
+      var p = document.createElement('p');
+      p.className = 'ctx';
+      p.textContent = q.context;
+      box.appendChild(p);
+    }
+    var mine = store.get(mineKey(q.id));
+
+    if (q.type === 'choice') {
+      var opts = document.createElement('div');
+      opts.className = 'opts';
+      q.options.forEach(function (o) {
+        var b = document.createElement('button');
+        b.className = 'opt' + (mine === o ? ' chosen' : '');
+        b.textContent = o;
+        b.onclick = function () {
+          send(q, o, function () {
+            Array.prototype.forEach.call(opts.children, function (x) { x.classList.remove('chosen'); });
+            b.classList.add('chosen');
+          });
+        };
+        opts.appendChild(b);
+      });
+      box.appendChild(opts);
+    } else {
+      var ta = document.createElement('textarea');
+      ta.maxLength = 200;
+      ta.placeholder = 'התשובה שלך';
+      ta.value = mine || '';
+      var b = document.createElement('button');
+      b.className = 'send';
+      b.textContent = mine ? 'עדכון התשובה' : 'שליחה';
+      b.onclick = function () {
+        var v = ta.value.trim();
+        if (!v) return setStatus('התשובה ריקה', true);
+        send(q, v, function () { b.textContent = 'עדכון התשובה'; });
+      };
+      box.appendChild(ta);
+      box.appendChild(b);
+    }
+    if (mine) setStatus('התשובה שלך נשמרה. אפשר לשנות עד שההצבעה תיסגר.');
+  }
+
+  function send(q, value, onOk) {
+    if (sending) return;
+    sending = true;
+    setStatus('שולח...');
+    call('vote', view.deck, BOOT.session, q.id, voter, value).then(function (r) {
+      sending = false;
+      if (!r.ok) return setStatus(r.msg, true);
+      store.set(mineKey(q.id), value);
+      onOk();
+      setStatus('התשובה שלך נשמרה. אפשר לשנות עד שההצבעה תיסגר.');
+    }).catch(function () {
+      sending = false;
+      setStatus('התשובה לא נשלחה. נסו שוב.', true);
+    });
+  }
+
+  function poll() {
+    call('voteView', BOOT.deck, BOOT.session).then(function (v) {
+      var first = !view;
+      view = v;
+      if (first) { applyTheme(v.theme); $('deck').textContent = v.title; }
+      render();
+      setTimeout(poll, 4000);
+    }).catch(function (e) {
+      if (!view) $('view').innerHTML = '<div class="waiting err"></div>';
+      if (!view) $('view').firstChild.textContent = 'שגיאה: ' + errText(e);
+      setTimeout(poll, 6000);
+    });
+  }
+  poll();
+</script>
+</body>
+</html>

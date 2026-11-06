@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>שיעור חי</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="app.css">
+<script src="api.js"></script>
+<script src="qrcode.js"></script>
+<style>
+  .stage { height: 100vh; display: grid; grid-template-rows: auto 1fr auto; padding: 2.2vh 3vw; gap: 2vh; }
+  .topbar { display: flex; align-items: center; gap: 1.2vw; font-size: 1.7vh; color: var(--muted); }
+  .topbar .deck { font-weight: 700; color: var(--ink); font-size: 2.1vh; }
+  .main { display: grid; grid-template-columns: 1fr 28vh; gap: 3vw; min-height: 0; }
+  .qcol { display: flex; flex-direction: column; gap: 2vh; min-height: 0; }
+  .qtitle { font-size: 4.6vh; line-height: 1.25; margin: 0; font-weight: 700; }
+  .qcontext { font-size: 2.4vh; color: var(--muted); margin: 0; }
+  .results { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-start; padding-top: 3vh; }
+  .bars { display: flex; flex-direction: column; gap: 1.8vh; }
+  .bar-row { display: grid; grid-template-columns: minmax(10vw, auto) 1fr 9vw; align-items: center; gap: 1.2vw; font-size: 2.7vh; }
+  .bar-label { font-weight: 600; }
+  .bar-track { background: var(--line); border-radius: 8px; height: 4.8vh; overflow: hidden; }
+  .bar-fill { background: var(--accent); height: 100%; width: 0; transition: width .5s ease; }
+  .bar-num { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .cards { display: flex; flex-wrap: wrap; gap: 1.2vh 1vw; align-content: flex-start; overflow: auto; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.2vh 1.2vw; font-size: 2.3vh; max-width: 30vw; }
+  .card .n { display: inline-block; background: var(--accent); color: #fff; font-weight: 700; border-radius: 999px; padding: 0 .7vw; margin-inline-start: .7vw; font-size: 1.8vh; }
+  .veil { text-align: center; color: var(--muted); margin-top: 4vh; }
+  .veil .big { font-size: 10vh; font-weight: 700; color: var(--ink); line-height: 1; }
+  .veil .small { font-size: 2.5vh; margin-top: 1vh; }
+  .qrpanel { background: var(--surface); border-radius: var(--radius); padding: 2vh; display: flex; flex-direction: column; align-items: center; gap: 1.4vh; align-self: start; text-align: center; }
+  .qrpanel .qr { width: 100%; }
+  .qrpanel .qr svg { width: 100%; height: auto; display: block; }
+  .qrpanel .hint { font-size: 2vh; font-weight: 600; }
+  .qrpanel .qurl { font-size: 1.4vh; color: var(--muted); direction: ltr; word-break: break-all; }
+  .bottom { display: flex; align-items: center; gap: .8vw; flex-wrap: wrap; min-height: 5vh; }
+  .bottom button { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: .9vh 1.2vw; font-size: 1.7vh; color: var(--ink); }
+  .bottom button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .bottom .keys { color: var(--muted); font-size: 1.4vh; margin-inline-start: auto; }
+  #lockBtn { opacity: .35; }
+  #lockBtn:hover { opacity: 1; }
+  .pinbox { display: flex; gap: .6vw; align-items: center; }
+  .pinbox input { width: 9em; padding: .7vh .8vw; font-size: 1.8vh; border: 1px solid var(--line); border-radius: 8px; direction: ltr; text-align: center; }
+  .msg { position: fixed; bottom: 9vh; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 1.2vh 2vw; border-radius: 10px; font-size: 1.9vh; }
+  .loading { display: grid; place-items: center; height: 100vh; font-size: 3vh; color: var(--muted); text-align: center; padding: 0 10vw; }
+</style>
+</head>
+<body>
+<div class="loading" id="loading">טוען...</div>
+
+<div class="stage hidden" id="stage">
+  <div class="topbar">
+    <span class="deck" id="deck"></span>
+    <span id="pos"></span>
+    <span class="pill" id="pill">סגור</span>
+    <span id="count"></span>
+  </div>
+
+  <div class="main">
+    <div class="qcol">
+      <h1 class="qtitle" id="qtitle"></h1>
+      <p class="qcontext" id="qcontext"></p>
+      <div class="results" id="results"></div>
+    </div>
+    <aside class="qrpanel">
+      <div class="qr" id="qr"></div>
+      <div class="hint">סרקו כדי לענות</div>
+      <div class="qurl" id="qurl"></div>
+    </aside>
+  </div>
+
+  <div class="bottom">
+    <button id="lockBtn">שליטה</button>
+    <span class="pinbox hidden" id="pinbox">
+      <input id="pin" type="password" inputmode="numeric" placeholder="PIN">
+      <button id="pinOk" class="primary">כניסה</button>
+    </span>
+    <span class="hidden" id="controls" style="display:flex; gap:.8vw; flex-wrap:wrap; align-items:center;">
+      <button id="prev">הקודם</button>
+      <button id="next">הבא</button>
+      <button id="open" class="primary">פתיחת הצבעה</button>
+      <button id="reveal">הצגת תוצאות</button>
+      <button id="reset">איפוס</button>
+    </span>
+    <span class="keys hidden" id="keys">חצים: מעבר | O: פתיחה/סגירה | R: תוצאות | F11: מסך מלא</span>
+  </div>
+</div>
+<div class="msg hidden" id="msg"></div>
+
+<script>
+  var $ = function (id) { return document.getElementById(id); };
+  var lesson = null, state = {}, results = null, qid = null;
+  var pin = tabStore.get('pin') || '';
+  var unlocked = false, busy = false, resetArmed = 0;
+
+  function toast(t, ms) {
+    var m = $('msg');
+    m.textContent = t;
+    m.classList.remove('hidden');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function () { m.classList.add('hidden'); }, ms || 2500);
+  }
+
+  function curIndex() {
+    var i = lesson.questions.findIndex(function (q) { return q.id === (state.current || qid); });
+    return i < 0 ? 0 : i;
+  }
+
+  function render() {
+    var q = lesson.questions[curIndex()];
+    $('pos').textContent = 'שאלה ' + (curIndex() + 1) + ' מתוך ' + lesson.questions.length;
+    $('qtitle').textContent = q.title;
+    $('qcontext').textContent = q.context || '';
+    var open = state.current === q.id && state.open;
+    $('pill').textContent = open ? 'ההצבעה פתוחה' : 'ההצבעה סגורה';
+    $('pill').classList.toggle('open', !!open);
+    $('open').textContent = open ? 'סגירת הצבעה' : 'פתיחת הצבעה';
+    $('reveal').textContent = state.showResults ? 'הסתרת תוצאות' : 'הצגת תוצאות';
+    renderResults(q);
+  }
+
+  function renderResults(q) {
+    var box = $('results');
+    var r = (results && qid === q.id) ? results : { n: 0, counts: q.options.map(function () { return 0; }), texts: [] };
+    $('count').textContent = r.n + ' תשובות';
+    box.innerHTML = '';
+    if (!state.showResults) {
+      var v = document.createElement('div');
+      v.className = 'veil';
+      v.innerHTML = '<div class="big"></div><div class="small">תשובות התקבלו. התוצאות מוסתרות.</div>';
+      v.querySelector('.big').textContent = r.n;
+      box.appendChild(v);
+      return;
+    }
+    if (q.type === 'choice') {
+      var wrap = document.createElement('div');
+      wrap.className = 'bars';
+      q.options.forEach(function (o, i) {
+        var c = (r.counts || [])[i] || 0;
+        var pct = r.n ? Math.round(c / r.n * 100) : 0;
+        var row = document.createElement('div');
+        row.className = 'bar-row';
+        row.innerHTML = '<span class="bar-label"></span><div class="bar-track"><div class="bar-fill"></div></div><span class="bar-num"></span>';
+        row.querySelector('.bar-label').textContent = o;
+        row.querySelector('.bar-num').textContent = c + ' (' + pct + '%)';
+        row.querySelector('.bar-fill').style.width = pct + '%';
+        wrap.appendChild(row);
+      });
+      box.appendChild(wrap);
+    } else {
+      var cards = document.createElement('div');
+      cards.className = 'cards';
+      (r.texts || []).forEach(function (a) {
+        var card = document.createElement('div');
+        card.className = 'card';
+        card.textContent = a.text;
+        if (a.n > 1) {
+          var s = document.createElement('span');
+          s.className = 'n';
+          s.textContent = a.n;
+          card.appendChild(s);
+        }
+        cards.appendChild(card);
+      });
+      box.appendChild(cards);
+    }
+  }
+
+  function poll() {
+    call('poll', lesson.deck, BOOT.session).then(function (p) {
+      state = p.state;
+      qid = p.qid;
+      results = p.results;
+      if (!lesson.questions.some(function (q) { return q.id === p.qid; })) return boot();
+      render();
+      setTimeout(poll, 2500);
+    }).catch(function () { setTimeout(poll, 5000); });
+  }
+
+  function act(action, arg) {
+    if (!unlocked) return toast('צריך להזין PIN');
+    if (busy) return;
+    busy = true;
+    call('control', lesson.deck, BOOT.session, pin, action, arg).then(function (r) {
+      busy = false;
+      if (!r.ok) return toast(r.msg);
+      state = r.state;
+      render();
+    }).catch(function (e) { busy = false; toast(errText(e)); });
+  }
+
+  function unlock() {
+    unlocked = true;
+    $('pinbox').classList.add('hidden');
+    $('lockBtn').classList.add('hidden');
+    $('controls').classList.remove('hidden');
+    $('keys').classList.remove('hidden');
+  }
+
+  function tryPin(p) {
+    return call('checkPin', p).then(function (ok) {
+      if (ok) { pin = p; tabStore.set('pin', p); unlock(); }
+      return ok;
+    });
+  }
+
+  function bind() {
+    $('lockBtn').onclick = function () { $('pinbox').classList.toggle('hidden'); $('pin').focus(); };
+    $('pinOk').onclick = function () {
+      tryPin($('pin').value.trim()).then(function (ok) { if (!ok) toast('PIN שגוי'); });
+    };
+    $('pin').onkeydown = function (e) { if (e.key === 'Enter') $('pinOk').click(); };
+    $('prev').onclick = function () { act('prev'); };
+    $('next').onclick = function () { act('next'); };
+    $('open').onclick = function () { act('open'); };
+    $('reveal').onclick = function () { act('results'); };
+    $('reset').onclick = function () {
+      if (Date.now() - resetArmed > 3000) {
+        resetArmed = Date.now();
+        return toast('לחצי שוב תוך 3 שניות כדי למחוק את התשובות לשאלה הזו', 3000);
+      }
+      resetArmed = 0;
+      act('reset');
+    };
+    document.addEventListener('keydown', function (e) {
+      if (!unlocked || e.target.tagName === 'INPUT') return;
+      var k = e.key;
+      if (k === 'ArrowLeft' || k === 'PageDown' || k === ' ') { e.preventDefault(); act('next'); }
+      else if (k === 'ArrowRight' || k === 'PageUp') { e.preventDefault(); act('prev'); }
+      else if (k === 'o' || k === 'O' || k === 'ם') act('open');
+      else if (k === 'r' || k === 'R' || k === 'ר') act('results');
+    });
+  }
+
+  function boot() {
+    call('boot', BOOT.deck, BOOT.session).then(function (b) {
+      lesson = b.lesson;
+      state = b.state;
+      applyTheme(lesson.theme);
+      $('deck').textContent = lesson.title;
+      var voteUrl = new URL('v.html?d=' + encodeURIComponent(lesson.deck) + '&s=' + encodeURIComponent(BOOT.session), location.href).href;
+      $('qurl').textContent = voteUrl.replace(/^https?:\/\//, '');
+      var qr = qrcode(0, 'M');
+      qr.addData(voteUrl);
+      qr.make();
+      $('qr').innerHTML = qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
+      $('loading').classList.add('hidden');
+      $('stage').classList.remove('hidden');
+      render();
+      poll();
+    }).catch(function (e) {
+      $('loading').textContent = 'שגיאה: ' + errText(e);
+    });
+  }
+
+  bind();
+  if (pin) tryPin(pin);
+  boot();
+</script>
+</body>
+</html>

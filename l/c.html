@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>שלט מנחה</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="app.css">
+<script src="api.js"></script>
+<style>
+  .phone { max-width: 520px; margin: 0 auto; padding: 22px 18px 40px; }
+  header { color: var(--muted); font-size: 14px; margin-bottom: 14px; display: flex; justify-content: space-between; gap: 10px; }
+  h1 { font-size: 20px; line-height: 1.35; margin: 8px 0; }
+  .meta { display: flex; gap: 10px; align-items: center; color: var(--muted); font-size: 15px; }
+  .count { font-size: 44px; font-weight: 700; line-height: 1; color: var(--ink); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+  .grid button, .wide { background: var(--surface); border: 2px solid var(--line); border-radius: var(--radius); padding: 18px 10px; font-size: 18px; color: var(--ink); }
+  .grid button.primary, .wide.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .wide { width: 100%; margin-top: 12px; }
+  input { width: 100%; padding: 14px; font-size: 20px; border: 2px solid var(--line); border-radius: var(--radius); text-align: center; direction: ltr; }
+  .qlist { margin-top: 22px; display: flex; flex-direction: column; gap: 8px; }
+  .qlist button { text-align: right; background: transparent; border: 1px solid var(--line); border-radius: 10px; padding: 10px; font-size: 15px; color: var(--ink); }
+  .qlist button.cur { border-color: var(--accent); background: var(--accent-soft); }
+  .status { margin-top: 14px; min-height: 1.4em; font-size: 15px; color: var(--accent); }
+</style>
+</head>
+<body>
+<main class="phone">
+  <header><span>שלט מנחה</span><span id="title"></span></header>
+
+  <section id="pinView" class="hidden">
+    <input id="pin" type="password" inputmode="numeric" placeholder="PIN">
+    <button class="wide primary" id="pinOk">כניסה</button>
+  </section>
+
+  <section id="ctrlView" class="hidden">
+    <div class="meta"><span id="pos"></span><span class="pill" id="pill"></span></div>
+    <h1 id="qtitle"></h1>
+    <div class="meta"><span class="count" id="count">0</span><span>תשובות</span></div>
+    <div class="grid">
+      <button id="prev">הקודם</button>
+      <button id="next">הבא</button>
+      <button id="open" class="primary"></button>
+      <button id="reveal"></button>
+    </div>
+    <button class="wide" id="reset">איפוס תשובות לשאלה</button>
+    <div class="qlist" id="qlist"></div>
+  </section>
+
+  <div class="status" id="status">טוען...</div>
+</main>
+
+<script>
+  var $ = function (id) { return document.getElementById(id); };
+  var lesson = null, state = {}, qid = null, pin = tabStore.get('pin') || '', busy = false, resetArmed = 0, polling = false;
+
+  function setStatus(t, isErr) {
+    $('status').textContent = t;
+    $('status').classList.toggle('err', !!isErr);
+  }
+
+  function idx() {
+    var i = lesson.questions.findIndex(function (q) { return q.id === (state.current || qid); });
+    return i < 0 ? 0 : i;
+  }
+
+  function render() {
+    var q = lesson.questions[idx()];
+    var open = state.current === q.id && state.open;
+    $('pos').textContent = 'שאלה ' + (idx() + 1) + ' מתוך ' + lesson.questions.length + ' | מפגש: ' + BOOT.session;
+    $('qtitle').textContent = q.title;
+    $('pill').textContent = open ? 'פתוחה' : 'סגורה';
+    $('pill').classList.toggle('open', !!open);
+    $('open').textContent = open ? 'סגירת הצבעה' : 'פתיחת הצבעה';
+    $('reveal').textContent = state.showResults ? 'הסתרת תוצאות' : 'הצגת תוצאות';
+    var list = $('qlist');
+    list.innerHTML = '';
+    lesson.questions.forEach(function (x, i) {
+      var b = document.createElement('button');
+      b.textContent = (i + 1) + '. ' + x.title;
+      if (i === idx()) b.className = 'cur';
+      b.onclick = function () { act('goto', i); };
+      list.appendChild(b);
+    });
+  }
+
+  function act(action, arg) {
+    if (busy) return;
+    busy = true;
+    call('control', lesson.deck, BOOT.session, pin, action, arg).then(function (r) {
+      busy = false;
+      if (!r.ok) return setStatus(r.msg, true);
+      state = r.state;
+      setStatus('');
+      render();
+    }).catch(function (e) { busy = false; setStatus(errText(e), true); });
+  }
+
+  function poll() {
+    call('poll', lesson.deck, BOOT.session).then(function (p) {
+      state = p.state;
+      qid = p.qid;
+      $('count').textContent = p.results ? p.results.n : 0;
+      render();
+      setTimeout(poll, 3000);
+    }).catch(function () { setTimeout(poll, 5000); });
+  }
+
+  function enter(p) {
+    return call('checkPin', p).then(function (ok) {
+      if (!ok) { $('pinView').classList.remove('hidden'); setStatus(p ? 'PIN שגוי' : '', !!p); return; }
+      pin = p;
+      tabStore.set('pin', p);
+      $('pinView').classList.add('hidden');
+      $('ctrlView').classList.remove('hidden');
+      setStatus('');
+      render();
+      if (!polling) { polling = true; poll(); }
+    });
+  }
+
+  $('pinOk').onclick = function () { enter($('pin').value.trim()); };
+  $('pin').onkeydown = function (e) { if (e.key === 'Enter') $('pinOk').click(); };
+  $('prev').onclick = function () { act('prev'); };
+  $('next').onclick = function () { act('next'); };
+  $('open').onclick = function () { act('open'); };
+  $('reveal').onclick = function () { act('results'); };
+  $('reset').onclick = function () {
+    if (Date.now() - resetArmed > 3000) {
+      resetArmed = Date.now();
+      return setStatus('לחצי שוב תוך 3 שניות כדי למחוק את התשובות לשאלה הזו.');
+    }
+    resetArmed = 0;
+    act('reset');
+  };
+
+  call('boot', BOOT.deck, BOOT.session).then(function (b) {
+    lesson = b.lesson;
+    state = b.state;
+    applyTheme(lesson.theme);
+    $('title').textContent = lesson.title;
+    setStatus('');
+    enter(pin);
+  }).catch(function (e) { setStatus('שגיאה: ' + errText(e), true); });
+</script>
+</body>
+</html>
