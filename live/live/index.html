@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>מצגת חיה</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="vendor/qrcode.js"></script>
+</head>
+<body>
+<div class="stage">
+  <div class="topbar">
+    <span class="deck" id="deck"></span>
+    <span id="pos"></span>
+    <span class="pill" id="pill">סגור</span>
+    <span id="count"></span>
+    <span class="spacer"></span>
+    <span class="banner hidden" id="banner"></span>
+  </div>
+
+  <div class="main">
+    <div class="qcol">
+      <h1 class="qtitle" id="qtitle"></h1>
+      <p class="qcontext" id="qcontext"></p>
+      <div id="qtable"></div>
+      <div class="results" id="results"></div>
+    </div>
+    <aside class="qrpanel">
+      <div class="qr" id="qr"></div>
+      <div class="hint">סרקו כדי לענות</div>
+      <div class="url" id="url"></div>
+    </aside>
+  </div>
+
+  <div class="controls" id="controls">
+    <button id="prev">הקודם</button>
+    <button id="next">הבא</button>
+    <button id="open" class="primary">פתיחת הצבעה</button>
+    <button id="reveal">הצגת תוצאות</button>
+    <button id="reset">איפוס</button>
+    <button id="sim" class="hidden">הדמיית 20 הצבעות</button>
+    <button id="login" class="hidden">התחברות מנחה</button>
+    <span class="keys">חצים: מעבר | O: פתיחה/סגירה | R: תוצאות | F: מסך מלא</span>
+  </div>
+</div>
+<div class="toast hidden" id="toast"></div>
+<script type="module" src="present.js"></script>
+</body>
+</html>
