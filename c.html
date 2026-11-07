@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>שלט מנחה</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="app.css">
+<script src="api.js"></script>
+<style>
+  .phone { max-width: 520px; margin: 0 auto; padding: 22px 18px 40px; }
+  header { color: var(--muted); font-size: 14px; margin-bottom: 14px; display: flex; justify-content: space-between; gap: 10px; }
+  h1 { font-size: 20px; line-height: 1.35; margin: 8px 0; }
+  .meta { display: flex; gap: 10px; align-items: center; color: var(--muted); font-size: 15px; }
+  .count { font-size: 44px; font-weight: 700; line-height: 1; color: var(--ink); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+  .grid button, .wide { background: var(--surface); border: 2px solid var(--line); border-radius: var(--radius); padding: 18px 10px; font-size: 18px; color: var(--ink); }
+  .grid button.primary, .wide.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 700; }
+  .wide { width: 100%; margin-top: 12px; }
+  input { width: 100%; padding: 14px; font-size: 20px; border: 2px solid var(--line); border-radius: var(--radius); text-align: center; direction: ltr; }
+  .qlist { margin-top: 22px; display: flex; flex-direction: column; gap: 8px; }
+  .qlist button { text-align: right; background: transparent; border: 1px solid var(--line); border-radius: 10px; padding: 10px; font-size: 15px; color: var(--ink); }
+  .qlist button.cur { border-color: var(--accent); background: var(--accent-soft); }
+  .answers { margin-top: 22px; }
+  .answers h2 { font-size: 16px; margin: 0 0 8px; color: var(--muted); font-weight: 600; }
+  .ans { display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 8px; background: var(--bg); }
+  .ans .t { flex: 1; font-size: 16px; word-break: break-word; }
+  .ans .c { color: var(--muted); font-size: 14px; }
+  .ans button { border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 8px; padding: 6px 12px; font-size: 14px; }
+  .ans.off .t { text-decoration: line-through; color: var(--muted); }
+  .status { margin-top: 14px; min-height: 1.4em; font-size: 15px; color: var(--ink); }
+</style>
+</head>
+<body>
+<main class="phone">
+  <header><span>שלט מנחה</span><span id="title"></span></header>
+
+  <section id="pinView" class="hidden">
+    <input id="pin" type="password" inputmode="numeric" placeholder="PIN">
+    <button class="wide primary" id="pinOk">כניסה</button>
+  </section>
+
+  <section id="ctrlView" class="hidden">
+    <div class="meta"><span id="pos"></span><span class="pill" id="pill"></span></div>
+    <h1 id="qtitle"></h1>
+    <div class="meta"><span class="count" id="count">0</span><span>תשובות</span></div>
+    <div class="grid">
+      <button id="prev">הקודם</button>
+      <button id="next">הבא</button>
+      <button id="open" class="primary"></button>
+      <button id="reveal"></button>
+    </div>
+    <button class="wide" id="reset">איפוס תשובות לשאלה</button>
+    <div class="answers hidden" id="answers"><h2>תשובות (אפשר להסתיר מהמסך)</h2><div id="anslist"></div></div>
+    <div class="qlist" id="qlist"></div>
+  </section>
+
+  <div class="status" id="status">טוען...</div>
+</main>
+
+<script>
+  var $ = function (id) { return document.getElementById(id); };
+  var lesson = null, state = {}, qid = null, pin = tabStore.get('pin') || '', resetArmed = 0, polling = false;
+
+  function setStatus(t, isErr) {
+    $('status').textContent = t;
+    $('status').classList.toggle('err', !!isErr);
+  }
+
+  function idx() {
+    var i = lesson.questions.findIndex(function (q) { return q.id === (state.current || qid); });
+    return i < 0 ? 0 : i;
+  }
+
+  function render() {
+    var q = lesson.questions[idx()];
+    var open = state.current === q.id && state.open;
+    $('pos').textContent = 'שאלה ' + (idx() + 1) + ' מתוך ' + lesson.questions.length + ' | מפגש: ' + BOOT.session;
+    $('qtitle').textContent = q.title;
+    $('pill').textContent = open ? 'פתוחה' : 'סגורה';
+    $('pill').classList.toggle('open', !!open);
+    $('open').textContent = open ? 'סגירת הצבעה' : 'פתיחת הצבעה';
+    $('reveal').textContent = state.showResults ? 'הסתרת תוצאות' : 'הצגת תוצאות';
+    var list = $('qlist');
+    list.innerHTML = '';
+    lesson.questions.forEach(function (x, i) {
+      var b = document.createElement('button');
+      b.textContent = (i + 1) + '. ' + x.title;
+      if (i === idx()) b.className = 'cur';
+      b.onclick = function () { act('goto', i); };
+      list.appendChild(b);
+    });
+  }
+
+  // השלט מתעדכן מיד בלחיצה (עדכון אופטימי), והפעולות נשלחות ל־Google אחת אחרי השנייה.
+  // אם פעולה נכשלת, הסקירה הבאה (תוך 3 שניות) מחזירה את המצב האמיתי.
+  var queue = Promise.resolve(), pending = 0, actSeq = 0, lastResults = null;
+
+  function predict(action, arg) {
+    var qs = lesson.questions;
+    var base = qs.findIndex(function (q) { return q.id === state.current; });
+    var cur = qs[Math.max(0, base)];
+    var goTo = function (j) {
+      j = Math.min(qs.length - 1, Math.max(0, j));
+      if (qs[j].id !== state.current) {
+        state.current = qs[j].id; state.open = true; state.showResults = false;
+        $('count').textContent = '0';
+        lastResults = null;
+      }
+    };
+    if (action === 'next') goTo(base + 1);
+    else if (action === 'prev') goTo(base - 1);
+    else if (action === 'goto') goTo(arg);
+    else if (action === 'open') { state.current = cur.id; state.open = arg; }
+    else if (action === 'results') { state.current = cur.id; state.showResults = arg; }
+    else if (action === 'reset') { $('count').textContent = '0'; lastResults = null; }
+    else if ((action === 'hide' || action === 'unhide') && lastResults && lastResults.texts) {
+      lastResults.texts.forEach(function (t) { if (t.text === arg) t.hidden = (action === 'hide'); });
+    }
+  }
+
+  function act(action, arg) {
+    // פתיחה/סגירה והצגה/הסתרה נשלחות כערך מפורש, כדי שהשלט והשרת לא יצאו מסנכרון
+    if (action === 'open') {
+      var q = lesson.questions[idx()];
+      arg = !(state.current === q.id && state.open);
+    } else if (action === 'results') {
+      arg = !state.showResults;
+    }
+    predict(action, arg);
+    setStatus('');
+    render();
+    renderAnswers(lesson.questions[idx()], lastResults, true);
+    pending++;
+    actSeq++;
+    queue = queue.then(function () {
+      return call('control', lesson.deck, BOOT.session, pin, action, arg);
+    }).then(function (r) {
+      pending--;
+      if (!r.ok) { setStatus(r.msg, true); return; }
+      if (pending === 0) { state = r.state; render(); }
+    }).catch(function (e) {
+      pending--;
+      setStatus('הפעולה לא נשמרה: ' + errText(e), true);
+    });
+  }
+
+  var lastAns = '';
+  function renderAnswers(q, r, force) {
+    var show = q && (q.type === 'text' || q.type === 'cloud');
+    $('answers').classList.toggle('hidden', !show);
+    if (!show) { lastAns = ''; return; }
+    var items = (r && r.texts) || [];
+    var sig = q.id + JSON.stringify(items);
+    if (sig === lastAns && !force) return;
+    lastAns = sig;
+    var list = $('anslist');
+    list.innerHTML = '';
+    if (!items.length) { list.textContent = 'עדיין אין תשובות'; return; }
+    items.forEach(function (a) {
+      var row = document.createElement('div');
+      row.className = 'ans' + (a.hidden ? ' off' : '');
+      var t = document.createElement('span'); t.className = 't'; t.textContent = a.text;
+      var c = document.createElement('span'); c.className = 'c'; c.textContent = a.n > 1 ? '×' + a.n : '';
+      var b = document.createElement('button');
+      b.textContent = a.hidden ? 'החזרה' : 'הסתרה';
+      b.onclick = function () { act(a.hidden ? 'unhide' : 'hide', a.text); };
+      row.appendChild(t); row.appendChild(c); row.appendChild(b);
+      list.appendChild(row);
+    });
+  }
+
+  function poll() {
+    var startSeq = actSeq;
+    call('poll', lesson.deck, BOOT.session, pin).then(function (p) {
+      // בזמן שיש פעולות בדרך, או אם נלחץ משהו מאז שהסקירה יצאה, לא דורסים את מה שהשלט כבר הציג
+      if (pending === 0 && startSeq === actSeq) {
+        state = p.state;
+        qid = p.qid;
+        lastResults = p.results;
+        $('count').textContent = p.results ? p.results.n : 0;
+        render();
+        renderAnswers(lesson.questions.find(function (x) { return x.id === p.qid; }), p.results);
+      }
+      setTimeout(poll, 3000);
+    }).catch(function () { setTimeout(poll, 5000); });
+  }
+
+  function enter(p) {
+    return call('checkPin', p).then(function (ok) {
+      if (!ok) { $('pinView').classList.remove('hidden'); setStatus(p ? 'PIN שגוי' : '', !!p); return; }
+      pin = p;
+      tabStore.set('pin', p);
+      $('pinView').classList.add('hidden');
+      $('ctrlView').classList.remove('hidden');
+      setStatus('');
+      render();
+      if (!polling) { polling = true; poll(); }
+    });
+  }
+
+  $('pinOk').onclick = function () { enter($('pin').value.trim()); };
+  $('pin').onkeydown = function (e) { if (e.key === 'Enter') $('pinOk').click(); };
+  $('prev').onclick = function () { act('prev'); };
+  $('next').onclick = function () { act('next'); };
+  $('open').onclick = function () { act('open'); };
+  $('reveal').onclick = function () { act('results'); };
+  $('reset').onclick = function () {
+    if (Date.now() - resetArmed > 3000) {
+      resetArmed = Date.now();
+      return setStatus('לחצי שוב תוך 3 שניות כדי למחוק את התשובות לשאלה הזו.');
+    }
+    resetArmed = 0;
+    act('reset');
+  };
+
+  call('boot', BOOT.deck, BOOT.session).then(function (b) {
+    lesson = b.lesson;
+    state = b.state;
+    applyTheme(lesson.theme);
+    $('title').textContent = lesson.title;
+    setStatus('');
+    enter(pin);
+  }).catch(function (e) { setStatus('שגיאה: ' + errText(e), true); });
+</script>
+</body>
+</html>

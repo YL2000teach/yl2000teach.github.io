@@ -1,124 +1,375 @@
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
-
 <head>
-<meta charset="UTF-8">
-<title>ימית ליבנה</title>
-<link rel="stylesheet" href="style.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>שיעור חי</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="app.css">
+<script src="api.js"></script>
+<script src="qrcode.js"></script>
+<style>
+  /* גדלים ביחידות של גובה המסך, כדי שהכל ייראה מרחוק בכל מקרן */
+  .stage { height: 100vh; display: grid; grid-template-rows: auto 1fr auto; padding: 3vh 3.5vw 0; gap: 2.5vh; }
+  .topbar { display: flex; align-items: center; gap: 1.4vw; font-size: 2.9vh; color: var(--muted); }
+  .topbar .deck { font-weight: 700; color: var(--ink); font-size: 3.3vh; }
+  .main { display: grid; grid-template-columns: 1fr 30vh; gap: 3.5vw; min-height: 0; }
+  .qcol { display: flex; flex-direction: column; gap: 2.2vh; min-height: 0; }
+  .qtitle { font-size: 7.6vh; line-height: 1.2; margin: 0; font-weight: 800; }
+  .qcontext { font-size: 3.9vh; color: var(--muted); margin: 0; }
+  .results { flex: 1; min-height: 0; display: flex; flex-direction: column; padding-top: 2vh; }
+
+  /* עמודות: רוחב קבוע לתווית, כך שכל הפסים מתחילים ונגמרים באותו מקום */
+  .bars { display: flex; flex-direction: column; gap: 2.4vh; }
+  .bar-row { display: grid; grid-template-columns: 26vw 1fr 13vw; align-items: center; gap: 1.6vw; font-size: 4.7vh; }
+  .bar-label { font-weight: 700; line-height: 1.15; }
+  .bar-track { background: var(--line); border-radius: 1vh; height: 7.6vh; overflow: hidden; }
+  .bar-fill { background: var(--accent); height: 100%; width: 0; transition: width .5s ease; }
+  .bar-num { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .bar-num small { color: var(--muted); font-weight: 400; font-size: .75em; }
+
+  /* היסטוגרמה וסולם: עמודות אנכיות */
+  .cols { flex: 1; min-height: 0; display: flex; align-items: flex-end; gap: 1vw; direction: ltr; padding-bottom: 0; }
+  .col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
+  .col .cnt { font-size: 3.9vh; font-weight: 700; margin-bottom: .6vh; }
+  .col .bar { width: 100%; background: var(--accent); border-radius: 1vh 1vh 0 0; transition: height .5s ease; min-height: 2px; }
+  .col .lbl { font-size: 3.3vh; color: var(--ink); margin-top: 1vh; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .axis { border-top: 3px solid var(--ink); }
+  .ends { display: flex; justify-content: space-between; font-size: 3.3vh; color: var(--muted); margin-top: .8vh; direction: ltr; }
+  .stats { display: flex; gap: 3vw; font-size: 4.4vh; margin-bottom: 2vh; }
+  .stats b { font-size: 1.25em; }
+
+  .cards { display: flex; flex-wrap: wrap; gap: 1.6vh 1.2vw; align-content: flex-start; overflow: hidden; }
+  .card { background: var(--surface); border: 2px solid var(--line); border-radius: var(--radius); padding: 1.6vh 1.6vw; font-size: 4.2vh; max-width: 42vw; }
+  .card .n { display: inline-block; background: var(--accent); color: var(--on-accent); font-weight: 700; border-radius: 999px; padding: 0 .8vw; margin-inline-start: .8vw; font-size: 3.2vh; }
+
+  .cloud { flex: 1; display: flex; flex-wrap: wrap; justify-content: center; align-content: center; align-items: center; gap: 1vh 2vw; overflow: hidden; }
+  .cloud span { font-weight: 700; line-height: 1.1; }
+
+  .veil { text-align: center; color: var(--muted); margin-top: 3vh; }
+  .veil .big { font-size: 17vh; font-weight: 800; color: var(--ink); line-height: 1; }
+  .veil .small { font-size: 3.9vh; margin-top: 1.4vh; }
+
+  .qrpanel { background: #fff; border: 2px solid var(--line); border-radius: var(--radius); padding: 2vh; display: flex; flex-direction: column; align-items: center; gap: 1.4vh; align-self: start; text-align: center; }
+  .qrpanel .qr { width: 100%; }
+  .qrpanel .qr svg { width: 100%; height: auto; display: block; }
+  .qrpanel .hint { font-size: 3vh; font-weight: 700; color: #1d2430; }
+  .qrpanel .qurl { font-size: 1.6vh; color: #6b7280; direction: ltr; word-break: break-all; }
+
+  .bottom { display: flex; align-items: center; gap: .8vw; flex-wrap: wrap; min-height: 6vh; padding-bottom: 1.2vh; }
+  .bottom button { background: var(--bg); border: 2px solid var(--line); border-radius: 10px; padding: .9vh 1.2vw; font-size: 1.9vh; color: var(--ink); }
+  .bottom button.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 700; }
+  .bottom .keys { color: var(--muted); font-size: 1.6vh; margin-inline-start: auto; }
+  #lockBtn { opacity: .3; }
+  #lockBtn:hover { opacity: 1; }
+  .pinbox { display: flex; gap: .6vw; align-items: center; }
+  .pinbox input { width: 9em; padding: .7vh .8vw; font-size: 1.9vh; border: 2px solid var(--line); border-radius: 8px; direction: ltr; text-align: center; }
+  .stripe { position: fixed; left: 0; right: 0; bottom: 0; height: 1vh; background: var(--accent); }
+  .msg { position: fixed; bottom: 10vh; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 1.2vh 2vw; border-radius: 10px; font-size: 2.2vh; }
+  .loading { display: grid; place-items: center; height: 100vh; font-size: 3.4vh; color: var(--muted); text-align: center; padding: 0 10vw; }
+</style>
 </head>
-
 <body>
+<div class="loading" id="loading">טוען...</div>
 
-<header class="banner">
-<img src="images/logo-banner.png" class="logo">
-</header>
+<div class="stage hidden" id="stage">
+  <div class="topbar">
+    <span class="deck" id="deck"></span>
+    <span id="pos"></span>
+    <span class="pill" id="pill">סגור</span>
+    <span id="count"></span>
+  </div>
 
-<nav class="menu">
-<a href="index.html">ראשי</a>
-<a href="#services">שירותים</a>
-<a href="workshops.html">הרצאות</a>
-<a href="materials.html">משאבים</a>
-</nav>
+  <div class="main">
+    <div class="qcol">
+      <h1 class="qtitle" id="qtitle"></h1>
+      <p class="qcontext" id="qcontext"></p>
+      <div class="results" id="results"></div>
+    </div>
+    <aside class="qrpanel">
+      <div class="qr" id="qr"></div>
+      <div class="hint">סרקו כדי לענות</div>
+      <div class="qurl" id="qurl"></div>
+    </aside>
+  </div>
 
-<section class="title">
-<h1>ימית ליבנה – כשאנשים ונתונים נפגשים</h1>
-</section>
-
-<section class="about">
-
-<div class="about-text">
-
-<h3>קצת עלי</h3>
-
-<p>
-בעלת 20 שנות ניסיון בעולמות משאבי אנוש, בדגש על ניתוח נתונים – בתחומי הגיוס,
-שכר והטבות, גיוון והכללה ומשאבי אנוש באופן כללי. בתפקידי השונים ניהלתי
-תוכניות ופרויקטים, הובלתי צוותים ועבדתי מול לקוחות בתוך משאבי אנוש ומחוץ לו
-על מנת לתת מענה אנליטי בתחומים הרלוונטיים ולעצב תהליכים תומכים.
-</p>
-
-<p>
-כיום אני מסייעת לארגונים ליצור תשתית לניהול הון אנושי המבוסס על נתונים
-תוך מקסום יכולות הכלים הקיימים.
-</p>
-
-<h3>למה People Analytics?</h3>
-
-<p>
-ניהול הון אנושי המבוסס על נתונים מוכח כמשפר את מצבה העסקי של חברות בכל
-הגדלים. שימוש בנתונים יכול לעזור לחברה לגייס, לשמר ולפתח הון אנושי
-בהלימה לצרכים העסקיים.
-</p>
-
+  <div class="bottom">
+    <button id="lockBtn">שליטה</button>
+    <span class="pinbox hidden" id="pinbox">
+      <input id="pin" type="password" inputmode="numeric" placeholder="PIN">
+      <button id="pinOk" class="primary">כניסה</button>
+    </span>
+    <span class="hidden" id="controls" style="display:flex; gap:.8vw; flex-wrap:wrap; align-items:center;">
+      <button id="prev">הקודם</button>
+      <button id="next">הבא</button>
+      <button id="open" class="primary">פתיחת הצבעה</button>
+      <button id="reveal">הצגת תוצאות</button>
+      <button id="reset">איפוס</button>
+    </span>
+    <span class="keys hidden" id="keys">חצים: מעבר | O: פתיחה/סגירה | R: תוצאות | F11: מסך מלא</span>
+  </div>
 </div>
+<div class="stripe"></div>
+<div class="msg hidden" id="msg"></div>
 
-<div class="about-image">
-<img src="images/profile.jpg">
-</div>
+<script>
+  var $ = function (id) { return document.getElementById(id); };
+  var lesson = null, state = {}, results = null, qid = null;
+  var pin = tabStore.get('pin') || '';
+  var unlocked = false, busy = false, resetArmed = 0;
 
-</section>
+  function toast(t, ms) {
+    var m = $('msg');
+    m.textContent = t;
+    m.classList.remove('hidden');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function () { m.classList.add('hidden'); }, ms || 2500);
+  }
 
-<section id="services">
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
 
-<h2>במה תוכלו להעזר בי?</h2>
+  function curIndex() {
+    var i = lesson.questions.findIndex(function (q) { return q.id === (state.current || qid); });
+    return i < 0 ? 0 : i;
+  }
 
-<div class="service-grid">
+  function render() {
+    var q = lesson.questions[curIndex()];
+    $('pos').textContent = 'שאלה ' + (curIndex() + 1) + ' מתוך ' + lesson.questions.length;
+    $('qtitle').textContent = q.title;
+    $('qcontext').textContent = q.context || '';
+    var open = state.current === q.id && state.open;
+    $('pill').textContent = open ? 'ההצבעה פתוחה' : 'ההצבעה סגורה';
+    $('pill').classList.toggle('open', !!open);
+    $('open').textContent = open ? 'סגירת הצבעה' : 'פתיחת הצבעה';
+    $('reveal').textContent = state.showResults ? 'הסתרת תוצאות' : 'הצגת תוצאות';
+    renderResults(q);
+  }
 
-<div class="service-card">
-<h3>ייעוץ מתמשך או חד פעמי</h3>
-<p>
-ייעוץ בנוגע לצורך נקודתי או כללי לגבי
-ניהול הון אנושי מונחה נתונים
-</p>
-</div>
+  function renderResults(q) {
+    var box = $('results');
+    var r = (results && qid === q.id) ? results : { n: 0 };
+    $('count').textContent = r.n + ' תשובות';
+    box.innerHTML = '';
+    if (!state.showResults) {
+      var v = el('div', 'veil');
+      v.appendChild(el('div', 'big', r.n));
+      v.appendChild(el('div', 'small', 'תשובות התקבלו. התוצאות מוסתרות.'));
+      box.appendChild(v);
+      return;
+    }
+    if (q.type === 'choice') renderChoice(box, q, r);
+    else if (q.type === 'scale') renderScale(box, q, r);
+    else if (q.type === 'number') renderNumber(box, q, r);
+    else if (q.type === 'cloud') renderCloud(box, r);
+    else renderCards(box, r);
+  }
 
-<div class="service-card">
-<h3>עיצוב תהליכים</h3>
-<p>
-ייעוץ וליווי תהליך ליצירת תשתית לניהול
-הון אנושי מבוסס נתונים – משלב בירור
-הצרכים, דרך מיפוי מצב קיים, עיצוב
-התהליך, הגדרות ויצירת שגרות
-</p>
-</div>
+  function renderChoice(box, q, r) {
+    var wrap = el('div', 'bars');
+    q.options.forEach(function (o, i) {
+      var c = (r.counts || [])[i] || 0;
+      var pct = r.n ? Math.round(c / r.n * 100) : 0;
+      var row = el('div', 'bar-row');
+      row.appendChild(el('span', 'bar-label', o));
+      var track = el('div', 'bar-track');
+      var fill = el('div', 'bar-fill');
+      fill.style.width = pct + '%';
+      track.appendChild(fill);
+      row.appendChild(track);
+      var num = el('span', 'bar-num', c + ' ');
+      num.appendChild(el('small', '', '(' + pct + '%)'));
+      row.appendChild(num);
+      wrap.appendChild(row);
+    });
+    box.appendChild(wrap);
+  }
 
-<div class="service-card">
-<h3>הדרכות אקסל למשאבי אנוש</h3>
-<p>
-הדרכות או סדנאות ללימוד אקסל
-מותאמות למשאבי אנוש תוך שימוש
-בדוגמאות רלוונטיות מעולם התוכן
-</p>
-</div>
+  function columns(box, items) {
+    var max = Math.max.apply(null, items.map(function (it) { return it.count; }).concat([1]));
+    var cols = el('div', 'cols');
+    items.forEach(function (it) {
+      var c = el('div', 'col');
+      c.appendChild(el('div', 'cnt', it.count || ''));
+      var b = el('div', 'bar');
+      b.style.height = (it.count / max * 78) + '%';
+      c.appendChild(b);
+      cols.appendChild(c);
+    });
+    box.appendChild(cols);
+    var axis = el('div', 'axis');
+    var labels = el('div', 'cols');
+    labels.style.flex = '0 0 auto';
+    items.forEach(function (it) {
+      var c = el('div', 'col');
+      c.appendChild(el('div', 'lbl', it.label));
+      labels.appendChild(c);
+    });
+    box.appendChild(axis);
+    box.appendChild(labels);
+  }
 
-<div class="service-card">
-<h3>הרצאות</h3>
-<p>
-הרצאות בהתאמה אישית
-</p>
-</div>
+  function renderScale(box, q, r) {
+    var stats = el('div', 'stats');
+    var m = el('span', '', 'ממוצע: ');
+    m.appendChild(el('b', '', r.mean === null || r.mean === undefined ? '-' : fmt(r.mean)));
+    stats.appendChild(m);
+    box.appendChild(stats);
+    var items = (r.counts || []).map(function (c, i) { return { count: c, label: String(q.min + i) }; });
+    columns(box, items);
+    if (q.lowLabel || q.highLabel) {
+      var ends = el('div', 'ends');
+      ends.appendChild(el('span', '', q.lowLabel));
+      ends.appendChild(el('span', '', q.highLabel));
+      box.appendChild(ends);
+    }
+  }
 
-</div>
+  function renderNumber(box, q, r) {
+    var stats = el('div', 'stats');
+    [['ממוצע', r.mean], ['חציון', r.median], ['מינימום', r.min], ['מקסימום', r.max]].forEach(function (p) {
+      var s = el('span', '', p[0] + ': ');
+      s.appendChild(el('b', '', r.n ? fmt(p[1]) : '-'));
+      stats.appendChild(s);
+    });
+    box.appendChild(stats);
+    if (!r.n) return;
+    var items = r.bins.map(function (b) {
+      return { count: b.count, label: r.intBins ? fmt(b.from) : fmt(b.from) + '-' + fmt(b.to) };
+    });
+    columns(box, items);
+    if (q.unit) {
+      var u = el('div', 'ends');
+      u.appendChild(el('span', '', ''));
+      u.appendChild(el('span', '', q.unit));
+      box.appendChild(u);
+    }
+  }
 
-</section>
+  function renderCards(box, r) {
+    var cards = el('div', 'cards');
+    (r.texts || []).forEach(function (a) {
+      var card = el('div', 'card', a.text);
+      if (a.n > 1) card.appendChild(el('span', 'n', a.n));
+      cards.appendChild(card);
+    });
+    box.appendChild(cards);
+  }
 
-<footer class="contact">
+  function renderCloud(box, r) {
+    var items = (r.texts || []).slice();
+    var cloud = el('div', 'cloud');
+    if (!items.length) { box.appendChild(cloud); return; }
+    var max = items[0].n, min = items[items.length - 1].n;
+    // הגדולות במרכז: מסדרים לסירוגין מהצדדים
+    var order = [];
+    items.forEach(function (it, i) { if (i % 2) order.push(it); else order.unshift(it); });
+    order.forEach(function (it, i) {
+      var t = max === min ? 1 : (it.n - min) / (max - min);
+      var s = el('span', '', it.text);
+      s.style.fontSize = (3.8 + t * 8.2) + 'vh';
+      s.style.color = i % 3 === 0 ? 'var(--ink)' : (i % 3 === 1 ? 'var(--muted)' : 'var(--ink)');
+      if (it === items[0]) s.style.color = 'var(--ink)';
+      cloud.appendChild(s);
+    });
+    box.appendChild(cloud);
+  }
 
-<h3>צרו קשר</h3>
+  function poll() {
+    call('poll', lesson.deck, BOOT.session).then(function (p) {
+      state = p.state;
+      qid = p.qid;
+      results = p.results;
+      if (!lesson.questions.some(function (q) { return q.id === p.qid; })) return boot();
+      render();
+      setTimeout(poll, 2500);
+    }).catch(function () { setTimeout(poll, 5000); });
+  }
 
-<p>
-מייל:
-<a href="mailto:yamit@yam-data.com">yamit@yam-data.com</a>
-</p>
+  function act(action, arg) {
+    if (!unlocked) return toast('צריך להזין PIN');
+    if (busy) return;
+    busy = true;
+    call('control', lesson.deck, BOOT.session, pin, action, arg).then(function (r) {
+      busy = false;
+      if (!r.ok) return toast(r.msg);
+      state = r.state;
+      render();
+    }).catch(function (e) { busy = false; toast(errText(e)); });
+  }
 
-<p>
-LinkedIn:
-<a href="https://www.linkedin.com/in/yamitlivneh" target="_blank">
-www.linkedin.com/in/yamitlivneh
-</a>
-</p>
+  function unlock() {
+    unlocked = true;
+    $('pinbox').classList.add('hidden');
+    $('lockBtn').classList.add('hidden');
+    $('controls').classList.remove('hidden');
+    $('keys').classList.remove('hidden');
+  }
 
-</footer>
+  function tryPin(p) {
+    return call('checkPin', p).then(function (ok) {
+      if (ok) { pin = p; tabStore.set('pin', p); unlock(); }
+      return ok;
+    });
+  }
 
+  function bind() {
+    $('lockBtn').onclick = function () { $('pinbox').classList.toggle('hidden'); $('pin').focus(); };
+    $('pinOk').onclick = function () {
+      tryPin($('pin').value.trim()).then(function (ok) { if (!ok) toast('PIN שגוי'); });
+    };
+    $('pin').onkeydown = function (e) { if (e.key === 'Enter') $('pinOk').click(); };
+    $('prev').onclick = function () { act('prev'); };
+    $('next').onclick = function () { act('next'); };
+    $('open').onclick = function () { act('open'); };
+    $('reveal').onclick = function () { act('results'); };
+    $('reset').onclick = function () {
+      if (Date.now() - resetArmed > 3000) {
+        resetArmed = Date.now();
+        return toast('לחצי שוב תוך 3 שניות כדי למחוק את התשובות לשאלה הזו', 3000);
+      }
+      resetArmed = 0;
+      act('reset');
+    };
+    document.addEventListener('keydown', function (e) {
+      if (!unlocked || e.target.tagName === 'INPUT') return;
+      var k = e.key;
+      if (k === 'ArrowLeft' || k === 'PageDown' || k === ' ') { e.preventDefault(); act('next'); }
+      else if (k === 'ArrowRight' || k === 'PageUp') { e.preventDefault(); act('prev'); }
+      else if (k === 'o' || k === 'O' || k === 'ם') act('open');
+      else if (k === 'r' || k === 'R' || k === 'ר') act('results');
+    });
+  }
+
+  function boot() {
+    call('boot', BOOT.deck, BOOT.session).then(function (b) {
+      lesson = b.lesson;
+      state = b.state;
+      applyTheme(lesson.theme);
+      $('deck').textContent = lesson.title;
+      var voteUrl = new URL('v.html?d=' + encodeURIComponent(lesson.deck) + '&s=' + encodeURIComponent(BOOT.session), location.href).href;
+      $('qurl').textContent = voteUrl.replace(/^https?:\/\//, '');
+      var qr = qrcode(0, 'M');
+      qr.addData(voteUrl);
+      qr.make();
+      $('qr').innerHTML = qr.createSvgTag({ cellSize: 4, margin: 4, scalable: true });
+      $('loading').classList.add('hidden');
+      $('stage').classList.remove('hidden');
+      render();
+      poll();
+    }).catch(function (e) {
+      $('loading').textContent = 'שגיאה: ' + errText(e);
+    });
+  }
+
+  bind();
+  if (pin) tryPin(pin);
+  boot();
+</script>
 </body>
 </html>
